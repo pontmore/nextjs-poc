@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --port ${PORT:-3001}",
-    "start": "next start --port ${PORT:-3001}",
+    "start": "node scripts/start.cjs",
     "build": "next build",
     "typecheck": "tsc --noEmit",
     "test": "node tests/protocol.test.cjs"

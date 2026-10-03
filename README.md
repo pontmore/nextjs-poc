@@ -22,6 +22,7 @@ npm run dev -- --port 4100
 
 npm run build
 PORT=4100 npm start
+npm start -- --port 4100
 ```
 
 Docker also accepts a runtime port override, for example `docker run --rm -e PORT=4100 -p 4100:4100 pontmore/nextjs-pontmore`.
