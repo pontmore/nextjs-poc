@@ -4,7 +4,6 @@ import { createAddressableEventCache, type RefreshSnapshot } from "./addressable
 
 const escrowCache = createAddressableEventCache({
   kinds: [PIP01_ESCROW_KIND],
-  "#t": ["escrow"],
   limit: 100,
 });
 

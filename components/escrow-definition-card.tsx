@@ -96,11 +96,10 @@ export function EscrowDefinitionCard({ escrow }: { escrow: EscrowDescriptor }) {
               <Detail label="Networks">
                 <ValuePills values={escrow.content?.networks || escrow.networks} />
               </Detail>
-              <Detail label="Reference format">{escrow.content?.reference_format || "None"}</Detail>
-              <Detail label="Required confirmation">{escrow.content?.funding_rules?.required_confirmation || "None"}</Detail>
-              <Detail label="Release trigger">{escrow.content?.release_rules?.release_trigger || "None"}</Detail>
-              <Detail label="Refund trigger">{escrow.content?.release_rules?.refund_trigger || "None"}</Detail>
-              <Detail label="Dispute policy">{escrow.content?.dispute_rules?.policy || "None"}</Detail>
+              {escrow.validationErrors.length ? <Alert severity="error">{escrow.validationErrors.join(" ")}</Alert> : null}
+              <Detail label="Selection lifetime">{escrow.content ? `${escrow.content.expires_at <= Math.floor(Date.now() / 1000) ? "Expired" : "Valid until"} (${escrow.content.expires_at} Unix seconds)` : "Invalid descriptor"}</Detail>
+              <Detail label="Service schema type">{escrow.content?.service?.schema.type || "No service interface"}</Detail>
+              <Detail label="Service schema URL">{escrow.content?.service?.schema.url || "None"}</Detail>
             </Stack>
           )}
         </Stack>

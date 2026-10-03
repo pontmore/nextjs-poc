@@ -118,75 +118,13 @@ declare global {
   }
 }
 
-enum SwapDirection {
-  FiatToBtc = "fiat-to-btc",
-  BtcToFiat = "btc-to-fiat",
-}
-
-enum FiatCurrency {
-  Kes = "KES",
-  Usd = "USD",
-  Ngn = "NGN",
-  Ghs = "GHS",
-  Tzs = "TZS",
-  Ugx = "UGX",
-  Zar = "ZAR",
-  Eur = "EUR",
-  Gbp = "GBP",
-}
-
-enum PaymentChannel {
-  Mpesa = "mpesa",
-  BankTransfer = "bank-transfer",
-  Cash = "cash",
-  MobileMoney = "mobile-money",
-  Card = "card",
-  Stablecoin = "stablecoin",
-}
-
 enum Network {
   Bitcoin = "bitcoin",
   Lightning = "lightning",
+  Cashu = "cashu",
 }
-
-enum InvoiceAsset {
-  Btc = "BTC",
-}
-
-enum InvoiceCurrency {
-  Sats = "sats",
-  Msats = "msats",
-}
-
-enum RequiredConfirmation {
-  InvoiceHeld = "invoice_held",
-  InvoicePaid = "invoice_paid",
-}
-
-enum ReleaseTrigger {
-  CounterpartyFiatPaymentConfirmed = "counterparty_fiat_payment_confirmed",
-}
-
-enum RefundTrigger {
-  TimeoutOrDisputeRefundDecision = "timeout_or_dispute_refund_decision",
-}
-
-enum DisputePolicy {
-  OperatorResolved = "operator_resolved",
-}
-
-const SWAP_DIRECTION_OPTIONS = enumOptions(SwapDirection);
-const FIAT_CURRENCY_OPTIONS = enumValues(FiatCurrency);
-const PAYMENT_CHANNEL_OPTIONS = enumValues(PaymentChannel);
-const SETTLEMENT_NETWORK_OPTIONS = enumValues(Network);
 const ESCROW_TYPE_OPTIONS = enumOptions(EscrowType);
 const NETWORK_OPTIONS = enumValues(Network);
-const INVOICE_ASSET_OPTIONS = enumValues(InvoiceAsset);
-const INVOICE_CURRENCY_OPTIONS = enumValues(InvoiceCurrency);
-const REQUIRED_CONFIRMATION_OPTIONS = enumOptions(RequiredConfirmation);
-const RELEASE_TRIGGER_OPTIONS = enumOptions(ReleaseTrigger);
-const REFUND_TRIGGER_OPTIONS = enumOptions(RefundTrigger);
-const DISPUTE_POLICY_OPTIONS = enumOptions(DisputePolicy);
 const DRAWER_WIDTH = 272;
 const AGENT_D_TAG = "agent";
 const ESCROW_D_TAG = "escrow";
@@ -241,18 +179,8 @@ export function AgentDirectory() {
   const [settingsState, setSettingsState] = useState<"idle" | "saved" | "failed">("idle");
   const [agentSecretKey, setAgentSecretKey] = useState<Uint8Array | null>(null);
   const [escrowSecretKey, setEscrowSecretKey] = useState<Uint8Array | null>(null);
-  const [name, setName] = useState("Pontmore Demo Agent");
-  const [about, setAbout] = useState("A PIP-00 proof-of-concept agent profile.");
-  const [swapTypes, setSwapTypes] = useState<string[]>([SwapDirection.FiatToBtc, SwapDirection.BtcToFiat]);
-  const [fiatCurrencies, setFiatCurrencies] = useState<string[]>([FiatCurrency.Kes, FiatCurrency.Usd]);
-  const [paymentChannels, setPaymentChannels] = useState<string[]>([PaymentChannel.Mpesa, PaymentChannel.BankTransfer]);
-  const [settlementNetworks, setSettlementNetworks] = useState<string[]>([Network.Bitcoin, Network.Lightning]);
-  const [regions, setRegions] = useState("KE");
-  const [minLimit, setMinLimit] = useState("1000 KES");
-  const [maxLimit, setMaxLimit] = useState("500000 KES");
-  const [pricingPolicy, setPricingPolicy] = useState("quote-based spread published by operator");
+  const [capabilities, setCapabilities] = useState("pontmore/swap@1");
   const [escrowAddress, setEscrowAddress] = useState("");
-  const [escrowNotes, setEscrowNotes] = useState("Default escrow descriptor can be published with PIP-01.");
   const [publishState, setPublishState] = useState<PublishState>("idle");
   const [publishLog, setPublishLog] = useState<string[]>([]);
   const [directoryState, setDirectoryState] = useState<DirectoryState>("idle");
@@ -269,31 +197,14 @@ export function AgentDirectory() {
   const [escrowPublishLog, setEscrowPublishLog] = useState<string[]>([]);
   const [escrowType, setEscrowType] = useState<string>(EscrowType.LightningHoldInvoice);
   const [escrowNetworks, setEscrowNetworks] = useState<string[]>([Network.Lightning]);
-  const [requiredConfirmation, setRequiredConfirmation] = useState<string>(RequiredConfirmation.InvoiceHeld);
-  const [disputePolicy, setDisputePolicy] = useState<string>(DisputePolicy.OperatorResolved);
-  const [referenceFormat, setReferenceFormat] = useState("bolt11 invoice hash or swap escrow reference");
-  const [invoiceNetwork, setInvoiceNetwork] = useState<string>(Network.Lightning);
-  const [invoiceAsset, setInvoiceAsset] = useState<string>(InvoiceAsset.Btc);
-  const [invoiceCurrency, setInvoiceCurrency] = useState<string>(InvoiceCurrency.Sats);
-  const [invoiceAmountRule, setInvoiceAmountRule] = useState("derived from swap request");
-  const [holdExpiryRule, setHoldExpiryRule] = useState("expires after unresolved timeout");
-  const [settleAuthority, setSettleAuthority] = useState("escrow operator");
-  const [cancelAuthority, setCancelAuthority] = useState("escrow operator");
-  const [custodyAuthority, setCustodyAuthority] = useState("escrow_operator");
-  const [releaseAuthority, setReleaseAuthority] = useState("escrow_operator");
-  const [refundAuthority, setRefundAuthority] = useState("escrow_operator");
-  const [invoiceExpiryRule, setInvoiceExpiryRule] = useState("expires_if_unpaid_before_funding_timeout");
-  const [releaseTrigger, setReleaseTrigger] = useState<string>(ReleaseTrigger.CounterpartyFiatPaymentConfirmed);
-  const [refundTrigger, setRefundTrigger] = useState<string>(RefundTrigger.TimeoutOrDisputeRefundDecision);
-  const [preimageVisibility, setPreimageVisibility] = useState("operator-local");
-  const [payoutNetwork, setPayoutNetwork] = useState<string>(Network.Lightning);
-  const [currencyFilter, setCurrencyFilter] = useState("");
-  const [swapDirectionFilter, setSwapDirectionFilter] = useState("");
-  const [paymentChannelFilter, setPaymentChannelFilter] = useState("");
+  const [expiresAt, setExpiresAt] = useState(() => String(Math.floor(Date.now() / 1000) + 86400));
+  const [schemaType, setSchemaType] = useState<"openapi" | "asyncapi">("openapi");
+  const [schemaUrl, setSchemaUrl] = useState("");
+  const [capabilityFilter, setCapabilityFilter] = useState("");
   const [escrowFilter, setEscrowFilter] = useState("");
   const [escrowTypeFilter, setEscrowTypeFilter] = useState("");
   const [escrowNetworkFilter, setEscrowNetworkFilter] = useState("");
-  const [escrowReferenceFormatFilter, setEscrowReferenceFormatFilter] = useState("");
+  const [escrowSchemaTypeFilter, setEscrowSchemaTypeFilter] = useState("");
 
   useEffect(() => {
     const stored = window.localStorage.getItem(SECRET_KEY_STORAGE);
@@ -352,13 +263,12 @@ export function AgentDirectory() {
   }, [relays]);
 
   useEffect(() => {
-    if (escrowType !== EscrowType.LightningHoldInvoice) {
+    if (escrowType !== EscrowType.LightningHoldInvoice && escrowType !== EscrowType.CashuEscrow) {
       return;
     }
 
-    setEscrowNetworks([Network.Lightning]);
-    setInvoiceNetwork(Network.Lightning);
-    setPayoutNetwork(Network.Lightning);
+    setEscrowNetworks([escrowType === EscrowType.CashuEscrow ? Network.Cashu : Network.Lightning]);
+
   }, [escrowType]);
 
   const sessionPubkey = authSession?.pubkey ?? "";
@@ -367,9 +277,9 @@ export function AgentDirectory() {
   const npub = useMemo(() => (pubkey ? nip19.npubEncode(pubkey) : ""), [pubkey]);
   const escrowPubkey = useMemo(() => (escrowSecretKey ? getPublicKey(escrowSecretKey) : sessionPubkey), [escrowSecretKey, sessionPubkey]);
   const escrowNpub = useMemo(() => (escrowPubkey ? nip19.npubEncode(escrowPubkey) : ""), [escrowPubkey]);
-  const effectiveEscrowAddress = escrowAddress.trim() || (escrowPubkey ? `30361:${escrowPubkey}:escrow` : "");
+  const effectiveEscrowAddress = escrowAddress.trim();
   const escrowAddressOptions = useMemo(() => {
-    const discovered = escrows.map((escrow) => ({
+    const discovered = escrows.filter((escrow) => escrow.content && escrow.content.expires_at > Math.floor(Date.now() / 1000)).map((escrow) => ({
       label: `${escrow.content?.escrow_type || escrow.escrowType || "Escrow"} (${escrow.identifier})`,
       value: escrowCoordinate(escrow),
     }));
@@ -385,12 +295,10 @@ export function AgentDirectory() {
     () =>
       agents.filter((agent) => (
         matchesLookup(agent.event.kind, agent.event.pubkey, agent.identifier, agentLookupFilter) &&
-        matchesFilter(agentCurrencies(agent), currencyFilter) &&
-        matchesFilter(agent.content?.capabilities?.swap_types, swapDirectionFilter) &&
-        matchesFilter(agent.content?.capabilities?.payment_channels, paymentChannelFilter) &&
+        matchesFilter(agent.content?.capabilities, capabilityFilter) &&
         matchesFilter([selectedEscrow(agent)], escrowFilter)
       )),
-    [agentLookupFilter, agents, currencyFilter, escrowFilter, paymentChannelFilter, swapDirectionFilter],
+    [agentLookupFilter, agents, escrowFilter, capabilityFilter],
   );
   const filteredEscrows = useMemo(
     () =>
@@ -398,15 +306,15 @@ export function AgentDirectory() {
         matchesLookup(escrow.event.kind, escrow.event.pubkey, escrow.identifier, escrowLookupFilter) &&
         matchesFilter([escrow.content?.escrow_type || escrow.escrowType], escrowTypeFilter) &&
         matchesFilter(escrow.content?.networks || escrow.networks, escrowNetworkFilter) &&
-        matchesFilter([escrow.content?.reference_format || ""], escrowReferenceFormatFilter)
+        matchesFilter([escrow.content?.service?.schema.type || ""], escrowSchemaTypeFilter)
       )),
-    [escrowLookupFilter, escrowNetworkFilter, escrowReferenceFormatFilter, escrowTypeFilter, escrows],
+    [escrowLookupFilter, escrowNetworkFilter, escrowSchemaTypeFilter, escrowTypeFilter, escrows],
   );
-  const activeFilterCount = [agentLookupFilter, currencyFilter, swapDirectionFilter, paymentChannelFilter, escrowFilter].filter(Boolean).length;
-  const activeEscrowFilterCount = [escrowLookupFilter, escrowTypeFilter, escrowNetworkFilter, escrowReferenceFormatFilter].filter(Boolean).length;
+  const activeFilterCount = [agentLookupFilter, capabilityFilter, escrowFilter].filter(Boolean).length;
+  const activeEscrowFilterCount = [escrowLookupFilter, escrowTypeFilter, escrowNetworkFilter, escrowSchemaTypeFilter].filter(Boolean).length;
   const isLightningHoldEscrow = escrowType === EscrowType.LightningHoldInvoice;
-  const isCustodialEscrow = escrowType === EscrowType.CustodialEscrow;
-  const escrowNetworkOptions = isLightningHoldEscrow ? [Network.Lightning] : NETWORK_OPTIONS;
+  const isCashuEscrow = escrowType === EscrowType.CashuEscrow;
+  const escrowNetworkOptions = isLightningHoldEscrow ? [Network.Lightning] : isCashuEscrow ? [Network.Cashu] : NETWORK_OPTIONS;
   const pageTitle = NAV_ITEMS.find((item) => item.value === activeTab)?.label ?? "Pontmore Protocol Next POC";
   const pagePipLink = PIP_LINKS[activeTab];
   const pageMeta = activeTab === "discover"
@@ -498,6 +406,7 @@ export function AgentDirectory() {
         body: JSON.stringify({ relays, event }),
       });
       const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Publish rejected.");
       const results = Array.isArray(payload.results) ? payload.results as ApiRelayResult[] : [];
       setProfileLog(results.map((result) => `${result.relay}: ${result.ok ? "OK" : "failed"} - ${result.message}`));
       setProfileState(results.some((result) => result.ok) ? "published" : "failed");
@@ -546,25 +455,8 @@ export function AgentDirectory() {
     setPublishState("publishing");
     setPublishLog([]);
 
-    const unsignedEvent = buildAgentEvent({
-      pubkey,
-      identifier: AGENT_D_TAG,
-      name,
-      about,
-      swapTypes,
-      fiatCurrencies,
-      paymentChannels,
-      settlementNetworks,
-      regions: parseList(regions),
-      minLimit,
-      maxLimit,
-      pricingPolicy,
-      escrowAddress: effectiveEscrowAddress,
-      escrowNotes,
-      relays,
-    });
-
     try {
+      const unsignedEvent = buildAgentEvent({ pubkey, identifier: AGENT_D_TAG, capabilities: parseList(capabilities), escrowAddress: effectiveEscrowAddress });
       const event = await signAgentEvent(unsignedEvent);
       const response = await fetch("/api/agents/publish", {
         method: "POST",
@@ -572,11 +464,12 @@ export function AgentDirectory() {
         body: JSON.stringify({ relays, event }),
       });
       const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Publish rejected.");
       const results = Array.isArray(payload.results) ? payload.results as ApiRelayResult[] : [];
       setPublishLog(results.map((result) => `${result.relay}: ${result.ok ? "OK" : "failed"} - ${result.message}`));
       setPublishState(results.some((result) => result.ok) ? "published" : "failed");
-    } catch {
-      setPublishLog(["Publish failed. Check the signer and relay connection."]);
+    } catch (error) {
+      setPublishLog([error instanceof Error ? error.message : "Publish failed."]);
       setPublishState("failed");
     }
   }
@@ -663,32 +556,9 @@ export function AgentDirectory() {
     setEscrowPublishState("publishing");
     setEscrowPublishLog([]);
 
-    const unsignedEvent = buildEscrowEvent({
-      pubkey: escrowPubkey,
-      identifier: ESCROW_D_TAG,
-      escrowType,
-      networks: escrowNetworks,
-      requiredConfirmation,
-      releaseTrigger,
-      refundTrigger,
-      disputePolicy,
-      referenceFormat,
-      invoiceNetwork,
-      invoiceAsset,
-      invoiceCurrency,
-      invoiceAmountRule,
-      holdExpiryRule,
-      settleAuthority,
-      cancelAuthority,
-      custodyAuthority,
-      releaseAuthority,
-      refundAuthority,
-      invoiceExpiryRule,
-      preimageVisibility,
-      payoutNetwork,
-    });
-
     try {
+      const unsignedEvent = buildEscrowEvent({ pubkey: escrowPubkey, identifier: ESCROW_D_TAG,
+        escrowType, networks: escrowNetworks, expiresAt: Number(expiresAt), schemaType, schemaUrl });
       const event = await signEscrowEvent(unsignedEvent);
       const response = await fetch("/api/escrows/publish", {
         method: "POST",
@@ -696,11 +566,12 @@ export function AgentDirectory() {
         body: JSON.stringify({ relays, event }),
       });
       const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Publish rejected.");
       const results = Array.isArray(payload.results) ? payload.results as ApiRelayResult[] : [];
       setEscrowPublishLog(results.map((result) => `${result.relay}: ${result.ok ? "OK" : "failed"} - ${result.message}`));
       setEscrowPublishState(results.some((result) => result.ok) ? "published" : "failed");
-    } catch {
-      setEscrowPublishLog(["Escrow publish failed. Check the signer and relay connection."]);
+    } catch (error) {
+      setEscrowPublishLog([error instanceof Error ? error.message : "Escrow publish failed."]);
       setEscrowPublishState("failed");
     }
   }
@@ -959,46 +830,18 @@ export function AgentDirectory() {
       return;
     }
 
-    setName(content.name || name);
-    setAbout(content.about || about);
-    setSwapTypes(normalizeOptionList(content.capabilities?.swap_types));
-    setFiatCurrencies(normalizeOptionList(content.capabilities?.fiat_currencies));
-    setPaymentChannels(normalizeOptionList(content.capabilities?.payment_channels));
-    setSettlementNetworks(normalizeOptionList(content.capabilities?.settlement_networks));
-    setRegions(normalizeOptionList(content.capabilities?.regions).join(", "));
-    setMinLimit(content.capabilities?.limits?.min || minLimit);
-    setMaxLimit(content.capabilities?.limits?.max || maxLimit);
-    setPricingPolicy(content.pricing_policy || pricingPolicy);
-    setEscrowAddress(content.escrow?.descriptor || agent.escrowAddress || "");
-    setEscrowNotes(content.escrow?.notes || escrowNotes);
+    setCapabilities(content.capabilities.join(", "));
+    setEscrowAddress(agent.escrowAddress);
   }
 
   function prefillEscrowForm(escrow: EscrowDescriptor) {
     const content = escrow.content;
-    if (!content) {
-      return;
-    }
-
-    setEscrowType(content.escrow_type || escrow.escrowType || EscrowType.LightningHoldInvoice);
-    setEscrowNetworks(normalizeOptionList(content.networks));
-    setRequiredConfirmation(content.funding_rules?.required_confirmation || requiredConfirmation);
-    setReleaseTrigger(content.release_rules?.release_trigger || releaseTrigger);
-    setRefundTrigger(content.release_rules?.refund_trigger || refundTrigger);
-    setDisputePolicy(content.dispute_rules?.policy || disputePolicy);
-    setReferenceFormat(content.reference_format || referenceFormat);
-    setInvoiceNetwork(content.invoice_network || invoiceNetwork);
-    setInvoiceAsset(content.invoice_asset || invoiceAsset);
-    setInvoiceCurrency(content.invoice_currency || invoiceCurrency);
-    setInvoiceAmountRule(content.invoice_amount_rule || invoiceAmountRule);
-    setHoldExpiryRule(content.hold_expiry_rule || holdExpiryRule);
-    setSettleAuthority(content.settle_authority || settleAuthority);
-    setCancelAuthority(content.cancel_authority || cancelAuthority);
-    setCustodyAuthority(content.custody_authority || custodyAuthority);
-    setReleaseAuthority(content.release_authority || releaseAuthority);
-    setRefundAuthority(content.refund_authority || refundAuthority);
-    setInvoiceExpiryRule(content.invoice_expiry_rule || invoiceExpiryRule);
-    setPreimageVisibility(content.preimage_visibility || preimageVisibility);
-    setPayoutNetwork(content.payout_network || payoutNetwork);
+    if (!content) return;
+    setEscrowType(content.escrow_type);
+    setEscrowNetworks(content.networks);
+    setExpiresAt(String(content.expires_at));
+    setSchemaType(content.service?.schema.type || "openapi");
+    setSchemaUrl(content.service?.schema.url || "");
   }
 
   function saveSettings() {
@@ -1027,9 +870,7 @@ export function AgentDirectory() {
   function clearAgentFilters() {
     setCoordinate("");
     setAgentLookupFilter("");
-    setCurrencyFilter("");
-    setSwapDirectionFilter("");
-    setPaymentChannelFilter("");
+    setCapabilityFilter("");
     setEscrowFilter("");
   }
 
@@ -1038,7 +879,7 @@ export function AgentDirectory() {
     setEscrowLookupFilter("");
     setEscrowTypeFilter("");
     setEscrowNetworkFilter("");
-    setEscrowReferenceFormatFilter("");
+    setEscrowSchemaTypeFilter("");
   }
 
   function editAgentFromListing(agent: AgentDefinition) {
@@ -1175,81 +1016,8 @@ export function AgentDirectory() {
                   </Stack>
 
                   <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" } }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 800, gridColumn: "1 / -1" }}>Profile</Typography>
-                    <TextField label="Name" value={name} onChange={(event) => setName(event.target.value)} sx={{ gridColumn: "1 / -1" }} />
-                    <TextField label="About" value={about} onChange={(event) => setAbout(event.target.value)} multiline minRows={3} sx={{ gridColumn: "1 / -1" }} />
-
-                    <Typography variant="subtitle2" sx={{ fontWeight: 800, gridColumn: "1 / -1", mt: 1 }}>Capabilities</Typography>
-                    <FormControl>
-                      <InputLabel id="swap-directions-label">Swap directions</InputLabel>
-                      <Select
-                        labelId="swap-directions-label"
-                        multiple
-                        value={swapTypes}
-                        onChange={(event) => setSwapTypes(selectedMuiValues(event))}
-                        input={<OutlinedInput label="Swap directions" />}
-                        renderValue={(selected) => renderSelectedChips(selected, SWAP_DIRECTION_OPTIONS)}
-                      >
-                        {SWAP_DIRECTION_OPTIONS.map((option) => (
-                          <MenuItem value={option.value} key={option.value}>{option.label}</MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-
-                    <FormControl>
-                      <InputLabel id="fiat-currencies-label">Fiat currencies</InputLabel>
-                      <Select
-                        labelId="fiat-currencies-label"
-                        multiple
-                        value={fiatCurrencies}
-                        onChange={(event) => setFiatCurrencies(selectedMuiValues(event))}
-                        input={<OutlinedInput label="Fiat currencies" />}
-                        renderValue={(selected) => renderSelectedChips(selected, FIAT_CURRENCY_OPTIONS.map((currency) => ({ value: currency, label: currency })))}
-                      >
-                        {FIAT_CURRENCY_OPTIONS.map((currency) => (
-                          <MenuItem value={currency} key={currency}>{currency}</MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-
-                    <FormControl>
-                      <InputLabel id="payment-channels-label">Payment channels</InputLabel>
-                      <Select
-                        labelId="payment-channels-label"
-                        multiple
-                        value={paymentChannels}
-                        onChange={(event) => setPaymentChannels(selectedMuiValues(event))}
-                        input={<OutlinedInput label="Payment channels" />}
-                        renderValue={(selected) => renderSelectedChips(selected, PAYMENT_CHANNEL_OPTIONS.map((channel) => ({ value: channel, label: formatProtocolValue(channel) })))}
-                      >
-                        {PAYMENT_CHANNEL_OPTIONS.map((channel) => (
-                          <MenuItem value={channel} key={channel}>{formatProtocolValue(channel)}</MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-
-                    <FormControl>
-                      <InputLabel id="settlement-networks-label">Settlement networks</InputLabel>
-                      <Select
-                        labelId="settlement-networks-label"
-                        multiple
-                        value={settlementNetworks}
-                        onChange={(event) => setSettlementNetworks(selectedMuiValues(event))}
-                        input={<OutlinedInput label="Settlement networks" />}
-                        renderValue={(selected) => renderSelectedChips(selected, SETTLEMENT_NETWORK_OPTIONS.map((network) => ({ value: network, label: formatProtocolValue(network) })))}
-                      >
-                        {SETTLEMENT_NETWORK_OPTIONS.map((network) => (
-                          <MenuItem value={network} key={network}>{formatProtocolValue(network)}</MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-
-                    <TextField label="Regions" value={regions} onChange={(event) => setRegions(event.target.value)} />
-                    <TextField label="Minimum" value={minLimit} onChange={(event) => setMinLimit(event.target.value)} />
-                    <TextField label="Maximum" value={maxLimit} onChange={(event) => setMaxLimit(event.target.value)} />
-                    <TextField label="Pricing policy" value={pricingPolicy} onChange={(event) => setPricingPolicy(event.target.value)} sx={{ gridColumn: "1 / -1" }} />
-
-                    <Typography variant="subtitle2" sx={{ fontWeight: 800, gridColumn: "1 / -1", mt: 1 }}>Escrow Selection</Typography>
+                    <TextField label="Versioned capabilities" value={capabilities} onChange={(event) => setCapabilities(event.target.value)} helperText="Comma-separated identifiers, such as pontmore/swap@1" sx={{ gridColumn: "1 / -1" }} />
+                    <Alert severity="info" sx={{ gridColumn: "1 / -1" }}>Publish names and descriptions from Profile. Commercial terms belong in signed, expiring offers or quotes.</Alert>
                     <Autocomplete
                       freeSolo
                       options={escrowAddressOptions}
@@ -1267,13 +1035,13 @@ export function AgentDirectory() {
                       renderInput={(params) => (
                         <TextField
                           {...params}
-                          label="Escrow descriptor address"
+                          label="Escrow descriptor address (optional)"
                           placeholder={effectiveEscrowAddress}
                         />
                       )}
                       sx={{ gridColumn: "1 / -1" }}
                     />
-                    <TextField label="Escrow notes" value={escrowNotes} onChange={(event) => setEscrowNotes(event.target.value)} multiline minRows={3} sx={{ gridColumn: "1 / -1" }} />
+
                   </Box>
 
                   {publishLog.length > 0 ? <StatusLog title="Publish results" lines={publishLog} severity={publishState === "failed" ? "error" : "info"} /> : null}
@@ -1323,7 +1091,7 @@ export function AgentDirectory() {
                         labelId="escrow-networks-label"
                         multiple
                         value={escrowNetworks}
-                        onChange={(event) => setEscrowNetworks(isLightningHoldEscrow ? [Network.Lightning] : selectedMuiValues(event))}
+                        onChange={(event) => setEscrowNetworks(isLightningHoldEscrow ? [Network.Lightning] : isCashuEscrow ? [Network.Cashu] : selectedMuiValues(event))}
                         input={<OutlinedInput label="Networks" />}
                         renderValue={(selected) => renderSelectedChips(selected, escrowNetworkOptions.map((network) => ({ value: network, label: formatProtocolValue(network) })))}
                       >
@@ -1332,75 +1100,13 @@ export function AgentDirectory() {
                         ))}
                       </Select>
                     </FormControl>
-                    <TextField label="Reference format" value={referenceFormat} onChange={(event) => setReferenceFormat(event.target.value)} />
-
-                    <Typography variant="subtitle2" sx={{ fontWeight: 800, gridColumn: "1 / -1", mt: 1 }}>Rules</Typography>
-                    <TextField label="Required confirmation" select value={requiredConfirmation} onChange={(event) => setRequiredConfirmation(event.target.value)}>
-                      {REQUIRED_CONFIRMATION_OPTIONS.map((option) => (
-                        <MenuItem value={option.value} key={option.value}>{option.label}</MenuItem>
-                      ))}
+                    <TextField label="Expires at (Unix seconds)" type="number" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} helperText="An expired replacement withdraws the descriptor from new coordinations." />
+                    <TextField label="Service schema type" select value={schemaType} onChange={(event) => setSchemaType(event.target.value as "openapi" | "asyncapi")}>
+                      <MenuItem value="openapi">OpenAPI</MenuItem>
+                      <MenuItem value="asyncapi">AsyncAPI</MenuItem>
                     </TextField>
-                    <TextField label="Dispute policy" select value={disputePolicy} onChange={(event) => setDisputePolicy(event.target.value)}>
-                      {DISPUTE_POLICY_OPTIONS.map((option) => (
-                        <MenuItem value={option.value} key={option.value}>{option.label}</MenuItem>
-                      ))}
-                    </TextField>
-                    <TextField label="Release trigger" select value={releaseTrigger} onChange={(event) => setReleaseTrigger(event.target.value)}>
-                      {RELEASE_TRIGGER_OPTIONS.map((option) => (
-                        <MenuItem value={option.value} key={option.value}>{option.label}</MenuItem>
-                      ))}
-                    </TextField>
-                    <TextField label="Refund trigger" select value={refundTrigger} onChange={(event) => setRefundTrigger(event.target.value)}>
-                      {REFUND_TRIGGER_OPTIONS.map((option) => (
-                        <MenuItem value={option.value} key={option.value}>{option.label}</MenuItem>
-                      ))}
-                    </TextField>
-                    {(isLightningHoldEscrow || isCustodialEscrow) ? (
-                      <>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 800, gridColumn: "1 / -1", mt: 1 }}>Invoice</Typography>
-                        <TextField label="Invoice network" select value={invoiceNetwork} onChange={(event) => setInvoiceNetwork(event.target.value)}>
-                          {NETWORK_OPTIONS.map((network) => (
-                            <MenuItem value={network} key={network}>{formatProtocolValue(network)}</MenuItem>
-                          ))}
-                        </TextField>
-                        <TextField label="Invoice asset" select value={invoiceAsset} onChange={(event) => setInvoiceAsset(event.target.value)}>
-                          {INVOICE_ASSET_OPTIONS.map((asset) => (
-                            <MenuItem value={asset} key={asset}>{asset}</MenuItem>
-                          ))}
-                        </TextField>
-                        <TextField label="Invoice currency" select value={invoiceCurrency} onChange={(event) => setInvoiceCurrency(event.target.value)}>
-                          {INVOICE_CURRENCY_OPTIONS.map((currency) => (
-                            <MenuItem value={currency} key={currency}>{currency}</MenuItem>
-                          ))}
-                        </TextField>
-                        <TextField label="Invoice amount rule" value={invoiceAmountRule} onChange={(event) => setInvoiceAmountRule(event.target.value)} />
-                      </>
-                    ) : null}
-                    {isLightningHoldEscrow ? (
-                      <>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 800, gridColumn: "1 / -1", mt: 1 }}>Hold Invoice Controls</Typography>
-                        <TextField label="Hold expiry rule" value={holdExpiryRule} onChange={(event) => setHoldExpiryRule(event.target.value)} />
-                        <TextField label="Settle authority" value={settleAuthority} onChange={(event) => setSettleAuthority(event.target.value)} />
-                        <TextField label="Cancel authority" value={cancelAuthority} onChange={(event) => setCancelAuthority(event.target.value)} />
-                        <TextField label="Preimage visibility" value={preimageVisibility} onChange={(event) => setPreimageVisibility(event.target.value)} />
-                      </>
-                    ) : null}
-                    {isCustodialEscrow ? (
-                      <>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 800, gridColumn: "1 / -1", mt: 1 }}>Custody Controls</Typography>
-                        <TextField label="Invoice expiry rule" value={invoiceExpiryRule} onChange={(event) => setInvoiceExpiryRule(event.target.value)} />
-                        <TextField label="Custody authority" value={custodyAuthority} onChange={(event) => setCustodyAuthority(event.target.value)} />
-                        <TextField label="Release authority" value={releaseAuthority} onChange={(event) => setReleaseAuthority(event.target.value)} />
-                        <TextField label="Refund authority" value={refundAuthority} onChange={(event) => setRefundAuthority(event.target.value)} />
-                      </>
-                    ) : null}
-                    {(isLightningHoldEscrow || isCustodialEscrow) ? (
-                      <TextField label="Payout network" select value={payoutNetwork} onChange={(event) => setPayoutNetwork(event.target.value)}>
-                        {NETWORK_OPTIONS.map((network) => (
-                          <MenuItem value={network} key={network}>{formatProtocolValue(network)}</MenuItem>
-                        ))}
-                      </TextField>
-                    ) : null}
+                    <TextField label="Service schema URL (optional)" value={schemaUrl} onChange={(event) => setSchemaUrl(event.target.value)} helperText="Absolute HTTPS URL to a versioned schema artifact." sx={{ gridColumn: "1 / -1" }} />
+                    <Alert severity="info" sx={{ gridColumn: "1 / -1" }}>Service operations, funding, release, refunds, disputes, fees, and recovery belong in the referenced schema. This POC does not fetch or validate schema artifacts.</Alert>
                   </Box>
 
                   {escrowPublishLog.length > 0 ? <StatusLog title="Publish results" lines={escrowPublishLog} severity={escrowPublishState === "failed" ? "error" : "info"} /> : null}
@@ -1481,9 +1187,7 @@ export function AgentDirectory() {
                   label="Agent filters"
                   activeCount={activeFilterCount}
                   fields={[
-                    { label: "Currency", value: currencyFilter, options: filterOptions.currencies, onChange: setCurrencyFilter },
-                    { label: "Swap direction", value: swapDirectionFilter, options: filterOptions.swapDirections, onChange: setSwapDirectionFilter, formatOption: formatProtocolValue },
-                    { label: "Payment channel", value: paymentChannelFilter, options: filterOptions.paymentChannels, onChange: setPaymentChannelFilter, formatOption: formatProtocolValue },
+                    { label: "Capability", value: capabilityFilter, options: filterOptions.capabilities, onChange: setCapabilityFilter, formatOption: formatProtocolValue },
                     { label: "Selected escrow", value: escrowFilter, options: filterOptions.escrows, onChange: setEscrowFilter },
                   ]}
                   onClear={clearAgentFilters}
@@ -1531,7 +1235,7 @@ export function AgentDirectory() {
                   fields={[
                     { label: "Escrow type", value: escrowTypeFilter, options: escrowFilterOptions.types, onChange: setEscrowTypeFilter, formatOption: formatProtocolValue },
                     { label: "Network", value: escrowNetworkFilter, options: escrowFilterOptions.networks, onChange: setEscrowNetworkFilter, formatOption: formatProtocolValue },
-                    { label: "Reference format", value: escrowReferenceFormatFilter, options: escrowFilterOptions.referenceFormats, onChange: setEscrowReferenceFormatFilter },
+                    { label: "Schema type", value: escrowSchemaTypeFilter, options: escrowFilterOptions.schemaTypes, onChange: setEscrowSchemaTypeFilter },
                   ]}
                   onClear={clearEscrowFilters}
                 />
@@ -1707,7 +1411,7 @@ function LandingPage({
               Discover agents and escrow descriptors on Nostr.
             </Typography>
             <Typography color="text.secondary" sx={{ fontSize: 18, mt: 2 }}>
-              Pontmore models interoperable swap agents, escrow rules, and addressable discovery events for Bitcoin commerce workflows.
+              Pontmore defines capability discovery, escrow compatibility, and experimental coordination event chains.
             </Typography>
           </Box>
           <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
@@ -1724,8 +1428,8 @@ function LandingPage({
       <Box sx={{ alignItems: "center", display: "flex", p: { xs: 3, md: 6 } }}>
         <Stack spacing={2} sx={{ width: "100%" }}>
           {[
-            ["PIP-00", "Publish agent definitions with capabilities, rails, currencies, and escrow selection."],
-            ["PIP-01", "Describe escrow operators, networks, funding rules, release triggers, and dispute policy."],
+            ["PIP-00", "Publish versioned capability indexes and optional escrow references."],
+            ["PIP-01", "Publish escrow compatibility, expiry, and optional service-schema references."],
             ["Nostr-first", "Log in with a NIP-07 signer or create a new browser-local proof-of-concept identity."],
           ].map(([title, body]) => (
             <Card
@@ -2049,7 +1753,7 @@ function AgentCard({
   activeAgentPubkey: string;
   onEdit: (agent: AgentDefinition) => void;
 }) {
-  const canEdit = Boolean(activeAgentPubkey) && agent.event.pubkey === activeAgentPubkey && agent.identifier === "agent";
+  const canEdit = Boolean(activeAgentPubkey) && agent.event.pubkey === activeAgentPubkey && agent.identifier === "agent" && Boolean(agent.content);
   const [coordinateCopyState, setCoordinateCopyState] = useState<"idle" | "copied" | "failed">("idle");
   const [pubkeyCopyState, setPubkeyCopyState] = useState<"idle" | "copied" | "failed">("idle");
   const [definitionCopyState, setDefinitionCopyState] = useState<"idle" | "copied" | "failed">("idle");
@@ -2088,10 +1792,10 @@ function AgentCard({
     >
       <Box>
         <Typography variant="h6" component="h3" sx={{ fontWeight: 800 }}>
-          {agent.content?.name || "Unnamed agent"}
+          {"Agent capability index"}
         </Typography>
         <Typography color="text.secondary" sx={{ mt: 1 }}>
-          {agent.content?.about || (agent.malformedContent ? "Content is not valid JSON." : "No description.")}
+          {agent.validationErrors.join(" ") || "Signed capability declaration; availability and trust are separate application decisions."}
         </Typography>
       </Box>
       <CopyableDetail
@@ -2106,13 +1810,7 @@ function AgentCard({
         copyState={pubkeyCopyState}
         onCopy={() => copyIdentityValue(npub, setPubkeyCopyState)}
       />
-      <Detail label="Currencies">
-        <CurrencyPills values={agentCurrencies(agent)} />
-      </Detail>
-      <Detail label="Swap directions">
-        <ValuePills values={agent.content?.capabilities?.swap_types} />
-      </Detail>
-      <Detail label="Payment channels">{joinDisplayList(agent.content?.capabilities?.payment_channels) || "None"}</Detail>
+      <Detail label="Capabilities"><ValuePills values={agent.content?.capabilities} /></Detail>
       <Detail label="Selected escrow">{selectedEscrow(agent) || "None"}</Detail>
     </DirectoryDefinitionCard>
   );
@@ -2156,6 +1854,10 @@ function EscrowCard({ escrow }: { escrow: EscrowDescriptor }) {
             <ValuePills values={escrow.content?.networks || escrow.networks} />
           </Detail>
           <Detail label="Created">{formatEventTime(escrow.event.created_at)}</Detail>
+          {escrow.validationErrors.length ? <Alert severity="error">{escrow.validationErrors.join(" ")}</Alert> : null}
+          <Detail label="Selection lifetime">{escrow.content ? `${escrow.content.expires_at <= Math.floor(Date.now() / 1000) ? "Expired" : "Valid until"} (${escrow.content.expires_at} Unix seconds)` : "Invalid descriptor"}</Detail>
+          <Detail label="Service schema type">{escrow.content?.service?.schema.type || "No service interface"}</Detail>
+          <Detail label="Service schema URL">{escrow.content?.service?.schema.url || "None"}</Detail>
         </Stack>
       </CardContent>
       <CardActions
@@ -2368,21 +2070,6 @@ async function copyIdentityValue(value: string, setState: (state: "idle" | "copi
   }
 }
 
-function CurrencyPills({ values }: { values: string[] | undefined }) {
-  const currencies = values?.filter(Boolean) ?? [];
-  if (currencies.length === 0) {
-    return "None";
-  }
-
-  return (
-    <Stack direction="row" spacing={0.75} useFlexGap sx={{ flexWrap: "wrap" }}>
-      {currencies.map((currency) => {
-        const normalized = currency.toUpperCase();
-        return <Chip label={`${currencyFlag(normalized)} ${normalized}`} size="small" key={normalized} />;
-      })}
-    </Stack>
-  );
-}
 
 function ValuePills({ values }: { values: string[] | undefined }) {
   const normalizedValues = values?.filter(Boolean) ?? [];
@@ -2403,12 +2090,8 @@ function joinDisplayList(values: string[] | undefined): string {
   return values?.filter(Boolean).join(", ") || "";
 }
 
-function agentCurrencies(agent: AgentDefinition): string[] {
-  return normalizeOptionList(agent.currencies.length > 0 ? agent.currencies : agent.content?.capabilities?.fiat_currencies);
-}
-
 function selectedEscrow(agent: AgentDefinition): string {
-  return agent.escrowAddress || agent.content?.escrow?.descriptor || "";
+  return agent.escrowAddress;
 }
 
 function matchesFilter(values: string[] | undefined, filter: string): boolean {
@@ -2501,9 +2184,7 @@ function directoryItemKey(item: { event: NostrEvent; identifier: string }): stri
 
 function buildFilterOptions(agents: AgentDefinition[]) {
   return {
-    currencies: uniqueSorted(agents.flatMap((agent) => agentCurrencies(agent))),
-    swapDirections: uniqueSorted(agents.flatMap((agent) => normalizeOptionList(agent.content?.capabilities?.swap_types))),
-    paymentChannels: uniqueSorted(agents.flatMap((agent) => normalizeOptionList(agent.content?.capabilities?.payment_channels))),
+    capabilities: uniqueSorted(agents.flatMap((agent) => normalizeOptionList(agent.content?.capabilities))),
     escrows: uniqueSorted(agents.map(selectedEscrow).filter(Boolean)),
   };
 }
@@ -2512,7 +2193,7 @@ function buildEscrowFilterOptions(escrows: EscrowDescriptor[]) {
   return {
     types: uniqueSorted(escrows.map((escrow) => escrow.content?.escrow_type || escrow.escrowType).filter(Boolean)),
     networks: uniqueSorted(escrows.flatMap((escrow) => normalizeOptionList(escrow.content?.networks || escrow.networks))),
-    referenceFormats: uniqueSorted(escrows.map((escrow) => escrow.content?.reference_format || "").filter(Boolean)),
+    schemaTypes: uniqueSorted(escrows.map((escrow) => escrow.content?.service?.schema.type || "").filter(Boolean)),
   };
 }
 
@@ -2592,29 +2273,6 @@ function formatProtocolValue(value: string): string {
     .join(" ");
 }
 
-function currencyFlag(currency: string): string {
-  const flags: Record<string, string> = {
-    AED: "🇦🇪",
-    AUD: "🇦🇺",
-    CAD: "🇨🇦",
-    CHF: "🇨🇭",
-    CNY: "🇨🇳",
-    EUR: "🇪🇺",
-    GBP: "🇬🇧",
-    GHS: "🇬🇭",
-    INR: "🇮🇳",
-    JPY: "🇯🇵",
-    KES: "🇰🇪",
-    NGN: "🇳🇬",
-    TZS: "🇹🇿",
-    UGX: "🇺🇬",
-    USD: "🇺🇸",
-    XOF: "🇸🇳",
-    ZAR: "🇿🇦",
-  };
-
-  return flags[currency] ?? "¤";
-}
 
 function parseRelayInput(value: string): string[] {
   return Array.from(

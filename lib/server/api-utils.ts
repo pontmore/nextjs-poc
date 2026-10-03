@@ -20,11 +20,11 @@ export function parseLookupFilter(value: string, defaultKind: number): NostrFilt
   }
 
   const [kindValue, pubkeyValue, ...identifierParts] = trimmed.split(":");
-  const kind = Number.parseInt(kindValue, 10);
+  const kind = Number(kindValue);
   const identifier = identifierParts.join(":");
   const pubkey = parsePubkey(pubkeyValue);
 
-  if (!Number.isInteger(kind) || !pubkey || !identifier) {
+  if (kind !== defaultKind || !pubkey || !identifier) {
     return null;
   }
 

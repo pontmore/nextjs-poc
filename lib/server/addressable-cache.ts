@@ -93,7 +93,7 @@ function relayKey(relays: string[]): string {
 function storeLatestAddressableEvent(events: Map<string, NostrEvent>, event: NostrEvent) {
   const key = addressableKey(event);
   const existing = events.get(key);
-  if (!existing || event.created_at >= existing.created_at) {
+  if (!existing || event.created_at > existing.created_at || (event.created_at === existing.created_at && event.id < existing.id)) {
     events.set(key, event);
   }
 }

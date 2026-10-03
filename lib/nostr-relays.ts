@@ -1,3 +1,4 @@
+import { verifyEvent } from "nostr-tools";
 import type { NostrEvent } from "./pip00";
 
 export type RelayResult = {
@@ -104,7 +105,7 @@ function fetchFromRelay(
         return;
       }
 
-      if (data[0] === "EVENT" && data[1] === subscriptionId && isNostrEvent(data[2])) {
+      if (data[0] === "EVENT" && data[1] === subscriptionId && isNostrEvent(data[2]) && matchesNostrFilter(data[2], filter)) {
         events.push(data[2]);
       }
 
@@ -143,13 +144,28 @@ export function isNostrEvent(value: unknown): value is NostrEvent {
   }
 
   const event = value as Partial<NostrEvent>;
-  return (
+  const validShape = (
     typeof event.id === "string" &&
     typeof event.pubkey === "string" &&
     typeof event.created_at === "number" &&
     typeof event.kind === "number" &&
-    Array.isArray(event.tags) &&
+    Number.isSafeInteger(event.created_at) && event.created_at! >= 0 &&
+    Number.isSafeInteger(event.kind) &&
+    Array.isArray(event.tags) && event.tags.every((tag) => Array.isArray(tag) && tag.every((item) => typeof item === "string")) &&
     typeof event.content === "string" &&
     typeof event.sig === "string"
   );
+  if (!validShape) return false;
+  try {
+    // Verify a plain wire event; never trust nostr-tools verification caches on callers.
+    return verifyEvent({ id: event.id!, pubkey: event.pubkey!, created_at: event.created_at!,
+      kind: event.kind!, tags: event.tags!, content: event.content!, sig: event.sig! });
+  } catch { return false; }
+}
+
+export function matchesNostrFilter(event: NostrEvent, filter: NostrFilter): boolean {
+  return (!filter.kinds || filter.kinds.includes(event.kind)) &&
+    (!filter.authors || filter.authors.includes(event.pubkey)) &&
+    (filter.since === undefined || event.created_at >= filter.since) &&
+    (["#d", "#t"] as const).every((key) => !filter[key] || event.tags.some((tag) => tag[0] === key.slice(1) && filter[key]!.includes(tag[1])));
 }
