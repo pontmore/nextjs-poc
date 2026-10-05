@@ -38,6 +38,9 @@ import SearchIcon from "@mui/icons-material/Search";
 import { finalizeEvent, generateSecretKey, getPublicKey, nip19 } from "nostr-tools";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
+import { DASHBOARD_ROUTES, DIRECTORY_NAV, type DirectoryView } from "../lib/dashboard-routes";
+import { coordinationProfileHref, SWAP_PROFILE } from "../lib/coordinations";
+import { useCoordinationProfiles } from "./use-coordination-profiles";
 import { escrowCoordinate } from "../lib/escrow-coordinate";
 import {
   buildAgentEvent,
@@ -57,6 +60,8 @@ import {
 } from "../lib/pip01";
 
 const SECRET_KEY_STORAGE = "pontmore-pip00-poc-secret-key";
+const SIGNER_SESSION_STORAGE = "pontmore-nip07-session-pubkey";
+const SIGNED_OUT_STORAGE = "pontmore-session-signed-out";
 const AGENT_SECRET_KEY_STORAGE = "pontmore-pip00-poc-agent-secret-key";
 const ESCROW_SECRET_KEY_STORAGE = "pontmore-pip00-poc-escrow-secret-key";
 const RELAYS_STORAGE = "pontmore-pip00-poc-relays";
@@ -65,7 +70,6 @@ const PROFILE_KIND = 0;
 
 type PublishState = "idle" | "publishing" | "published" | "failed";
 type DirectoryState = "idle" | "loading" | "loaded" | "failed";
-type ActiveTab = "discover" | "publish" | "escrow-discover" | "escrow-publish" | "profile" | "settings";
 type ApiRelayResult = {
   relay: string;
   ok: boolean;
@@ -128,14 +132,7 @@ const NETWORK_OPTIONS = enumValues(Network);
 const DRAWER_WIDTH = 272;
 const AGENT_D_TAG = "agent";
 const ESCROW_D_TAG = "escrow";
-const NAV_ITEMS: { value: ActiveTab; label: string }[] = [
-  { value: "discover", label: "Agent Discovery" },
-  { value: "publish", label: "Agent Publishing" },
-  { value: "escrow-discover", label: "Escrow Discovery" },
-  { value: "escrow-publish", label: "Escrow Publishing" },
-  { value: "settings", label: "Settings" },
-];
-const PIP_LINKS: Partial<Record<ActiveTab, { href: string; label: string }>> = {
+const PIP_LINKS: Partial<Record<DirectoryView, { href: string; label: string }>> = {
   discover: {
     href: "https://github.com/pontmore/protocol/blob/main/PIP-00-agent-definition.md",
     label: "View PIP-00",
@@ -158,8 +155,8 @@ const PIP_LINKS: Partial<Record<ActiveTab, { href: string; label: string }>> = {
   },
 };
 
-export function AgentDirectory() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>("discover");
+export function AgentDirectory({ view }: { view?: DirectoryView }) {
+  const activePage = view ?? "discover";
   const [authSession, setAuthSession] = useState<AuthSession | null>(null);
   const [authStatus, setAuthStatus] = useState<AuthStatus>("idle");
   const [authMessage, setAuthMessage] = useState("");
@@ -173,7 +170,6 @@ export function AgentDirectory() {
   const [profileWebsite, setProfileWebsite] = useState("");
   const [profileNip05, setProfileNip05] = useState("");
   const [profileLud16, setProfileLud16] = useState("");
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [relays, setRelays] = useState<string[]>([...DEFAULT_RELAYS]);
   const [relayInput, setRelayInput] = useState([...DEFAULT_RELAYS].join("\n"));
   const [settingsState, setSettingsState] = useState<"idle" | "saved" | "failed">("idle");
@@ -207,8 +203,11 @@ export function AgentDirectory() {
   const [escrowSchemaTypeFilter, setEscrowSchemaTypeFilter] = useState("");
 
   useEffect(() => {
+    if (window.sessionStorage.getItem(SIGNED_OUT_STORAGE)) return;
     const stored = window.localStorage.getItem(SECRET_KEY_STORAGE);
     if (!stored) {
+      const signerPubkey = window.sessionStorage.getItem(SIGNER_SESSION_STORAGE);
+      if (signerPubkey && /^[0-9a-f]{64}$/.test(signerPubkey)) setAuthSession({ type: "nip07", pubkey: signerPubkey });
       return;
     }
 
@@ -252,15 +251,14 @@ export function AgentDirectory() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const tab = params.get("tab");
-    const escrow = params.get("escrow");
-    if (tab !== "escrow-publish" || !escrow) {
-      return;
-    }
+    const escrow = params.get("escrow"), agent = params.get("agent");
+    if (view === "escrow-publish" && escrow) void loadEscrowDefinitionForCoordinate(escrow);
+    if (view === "publish" && agent) void loadAgentDefinitionForCoordinate(agent);
+  }, [relays, view]);
 
-    setActiveTab("escrow-publish");
-    void loadEscrowDefinitionForCoordinate(escrow);
-  }, [relays]);
+  useEffect(() => {
+    if (!view && authSession) window.location.replace("/agents");
+  }, [authSession, view]);
 
   useEffect(() => {
     if (escrowType !== EscrowType.LightningHoldInvoice && escrowType !== EscrowType.CashuEscrow) {
@@ -277,6 +275,14 @@ export function AgentDirectory() {
   const npub = useMemo(() => (pubkey ? nip19.npubEncode(pubkey) : ""), [pubkey]);
   const escrowPubkey = useMemo(() => (escrowSecretKey ? getPublicKey(escrowSecretKey) : sessionPubkey), [escrowSecretKey, sessionPubkey]);
   const escrowNpub = useMemo(() => (escrowPubkey ? nip19.npubEncode(escrowPubkey) : ""), [escrowPubkey]);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (view === "publish" && pubkey && !params.has("agent")) void loadAgentDefinitionForIdentity(pubkey);
+    if (view === "escrow-publish" && escrowPubkey && !params.has("escrow")) void loadEscrowDefinitionForIdentity(escrowPubkey);
+  }, [view, pubkey, escrowPubkey, relays]);
+  useEffect(() => {
+    if (view === "profile" && sessionPubkey) void loadProfileForIdentity(sessionPubkey);
+  }, [view, sessionPubkey, relays]);
   const effectiveEscrowAddress = escrowAddress.trim();
   const escrowAddressOptions = useMemo(() => {
     const discovered = escrows.filter((escrow) => escrow.content && escrow.content.expires_at > Math.floor(Date.now() / 1000)).map((escrow) => ({
@@ -315,20 +321,20 @@ export function AgentDirectory() {
   const isLightningHoldEscrow = escrowType === EscrowType.LightningHoldInvoice;
   const isCashuEscrow = escrowType === EscrowType.CashuEscrow;
   const escrowNetworkOptions = isLightningHoldEscrow ? [Network.Lightning] : isCashuEscrow ? [Network.Cashu] : NETWORK_OPTIONS;
-  const pageTitle = NAV_ITEMS.find((item) => item.value === activeTab)?.label ?? "Pontmore Protocol Next POC";
-  const pagePipLink = PIP_LINKS[activeTab];
-  const pageMeta = activeTab === "discover"
+  const pageTitle = activePage === "publish" ? "Agent Publishing" : activePage === "escrow-publish" ? "Escrow Publishing" : activePage === "profile" ? "Profile" : DIRECTORY_NAV.find((item) => item.value === activePage)?.label ?? "Pontmore Protocol Next POC";
+  const pagePipLink = PIP_LINKS[activePage];
+  const pageMeta = activePage === "discover"
     ? `${filteredAgents.length} / ${agents.length} agents`
-    : activeTab === "escrow-discover"
+    : activePage === "escrow-discover"
       ? `${filteredEscrows.length} / ${escrows.length} escrows`
       : null;
-  const topBarAction = activeTab === "discover"
+  const topBarAction = activePage === "discover"
     ? (
         <Button variant="contained" onClick={refreshDirectory} disabled={directoryState === "loading"}>
           {directoryState === "loading" ? "Refreshing..." : "Refresh agents"}
         </Button>
       )
-    : activeTab === "escrow-discover"
+    : activePage === "escrow-discover"
       ? (
           <Button variant="contained" onClick={refreshEscrowDirectory} disabled={escrowDirectoryState === "loading"}>
             {escrowDirectoryState === "loading" ? "Refreshing..." : "Refresh escrows"}
@@ -678,15 +684,13 @@ export function AgentDirectory() {
       }
 
       setAuthSession({ type: "nip07", pubkey: extensionPubkey });
+      window.sessionStorage.removeItem(SIGNED_OUT_STORAGE);
+      window.sessionStorage.setItem(SIGNER_SESSION_STORAGE, extensionPubkey);
       setAuthStatus("idle");
-      setActiveTab("discover");
       setPublishState("idle");
       setPublishLog([]);
       setEscrowPublishState("idle");
       setEscrowPublishLog([]);
-      void loadProfileForIdentity(extensionPubkey);
-      void loadAgentDefinitionForIdentity(extensionPubkey);
-      void loadEscrowDefinitionForIdentity(extensionPubkey);
     } catch {
       setAuthStatus("failed");
       setAuthMessage("NIP-07 login was cancelled or failed.");
@@ -699,16 +703,13 @@ export function AgentDirectory() {
     const generated = generateSecretKey();
     const generatedPubkey = getPublicKey(generated);
     window.localStorage.setItem(SECRET_KEY_STORAGE, bytesToHex(generated));
+    window.sessionStorage.removeItem(SIGNED_OUT_STORAGE);
     setAuthSession({ type: "local", pubkey: generatedPubkey, secretKey: generated });
     setAuthStatus("idle");
-    setActiveTab("discover");
     setPublishState("idle");
     setPublishLog([]);
     setEscrowPublishState("idle");
     setEscrowPublishLog([]);
-    void loadProfileForIdentity(generatedPubkey);
-    void loadAgentDefinitionForIdentity(generatedPubkey);
-    void loadEscrowDefinitionForIdentity(generatedPubkey);
   }
 
   function generateFreshAgentIdentity() {
@@ -750,8 +751,9 @@ export function AgentDirectory() {
   }
 
   function logout() {
+    window.sessionStorage.removeItem(SIGNER_SESSION_STORAGE);
+    window.sessionStorage.setItem(SIGNED_OUT_STORAGE, "true");
     setAuthSession(null);
-    setActiveTab("discover");
     setAuthStatus("idle");
     setAuthMessage("");
   }
@@ -770,6 +772,13 @@ export function AgentDirectory() {
     if (definition) {
       prefillAgentForm(definition);
     }
+  }
+
+  async function loadAgentDefinitionForCoordinate(coordinateValue: string) {
+    const snapshot = await lookupDefinition("/api/agents/lookup", coordinateValue);
+    if (!snapshot) return;
+    const definition = snapshot.events.map(parseAgentEvent).find(agent => matchesLookup(agent.event.kind, agent.event.pubkey, agent.identifier, coordinateValue) && agent.content);
+    if (definition) prefillAgentForm(definition);
   }
 
   async function loadEscrowDefinitionForIdentity(identityPubkey: string) {
@@ -883,15 +892,10 @@ export function AgentDirectory() {
   }
 
   function editAgentFromListing(agent: AgentDefinition) {
-    prefillAgentForm(agent);
-    setActiveTab("publish");
+    window.location.assign(`/agents/publishing?agent=${encodeURIComponent(`30360:${agent.event.pubkey}:${agent.identifier}`)}`);
   }
 
-  function selectTab(value: ActiveTab) {
-    setActiveTab(value);
-    setMobileNavOpen(false);
-  }
-
+  if (!view && authSession) return null;
   if (!authSession) {
     return (
       <LandingPage
@@ -903,13 +907,13 @@ export function AgentDirectory() {
     );
   }
 
-  const relayFooter = activeTab === "discover"
+  const relayFooter = activePage === "discover"
     ? {
         title: "Agent relay reads",
         lines: directoryLog,
         severity: directoryState === "failed" ? "error" as const : "info" as const,
       }
-    : activeTab === "escrow-discover"
+    : activePage === "escrow-discover"
       ? {
           title: "Escrow relay reads",
           lines: escrowDirectoryLog,
@@ -918,82 +922,9 @@ export function AgentDirectory() {
       : null;
 
   return (
-    <Box sx={{ minHeight: "100vh" }}>
-      <AppBar
-        position="fixed"
-        color="inherit"
-        elevation={0}
-        sx={{
-          borderBottom: 1,
-          borderColor: "divider",
-          zIndex: (theme) => theme.zIndex.drawer + 1,
-        }}
-      >
-        <Toolbar disableGutters>
-          <IconButton edge="start" aria-label="Open navigation" onClick={() => setMobileNavOpen(true)} sx={{ display: { md: "none" }, mr: 1 }}>
-            <MenuIcon />
-          </IconButton>
-          <Box sx={{ alignItems: "center", display: { xs: "none", md: "flex" }, gap: 1.25, height: "100%", px: 3, width: DRAWER_WIDTH }}>
-            <BrandLogo />
-            <Box sx={{ minWidth: 0 }}>
-              <Typography variant="h6" component="div" sx={{ fontWeight: 900, letterSpacing: 0 }}>
-                PONTMORE
-              </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.1 }}>
-                proof of concept
-              </Typography>
-            </Box>
-          </Box>
-          <Divider orientation="vertical" flexItem sx={{ display: { xs: "none", md: "block" } }} />
-          <TopBarPageLabel title={pageTitle} pipLink={pagePipLink} meta={pageMeta} action={topBarAction} />
-        </Toolbar>
-      </AppBar>
-
-      <Drawer
-        variant="permanent"
-        sx={{
-          display: { xs: "none", md: "block" },
-          width: DRAWER_WIDTH,
-          flexShrink: 0,
-          "& .MuiDrawer-paper": {
-            width: DRAWER_WIDTH,
-            boxSizing: "border-box",
-            top: 64,
-            height: "calc(100% - 64px)",
-          },
-        }}
-      >
-        <DashboardNav activeTab={activeTab} session={authSession} onSelect={selectTab} onProfile={() => selectTab("profile")} onLogout={logout} />
-      </Drawer>
-
-      <Drawer
-        variant="temporary"
-        open={mobileNavOpen}
-        onClose={() => setMobileNavOpen(false)}
-        ModalProps={{ keepMounted: true }}
-        sx={{
-          display: { xs: "block", md: "none" },
-          "& .MuiDrawer-paper": {
-            width: DRAWER_WIDTH,
-            boxSizing: "border-box",
-          },
-        }}
-      >
-        <DashboardNav activeTab={activeTab} session={authSession} onSelect={selectTab} onProfile={() => selectTab("profile")} onLogout={logout} />
-      </Drawer>
-
-      <Box
-        component="main"
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          minHeight: "100vh",
-          pl: { md: `${DRAWER_WIDTH}px` },
-          pt: 7,
-        }}
-      >
+    <DashboardShell activePage={activePage} pageTitle={pageTitle} pagePipLink={pagePipLink} pageMeta={pageMeta} topBarAction={topBarAction} session={authSession} onLogout={logout} footer={relayFooter}>
         <Stack spacing={2.5} sx={{ flex: 1, p: { xs: 2, md: 3 }, maxWidth: "none" }}>
-        {activeTab === "publish" ? (
+        {activePage === "publish" ? (
           <Box sx={{ display: "grid", gap: 2.5, gridTemplateColumns: { xs: "1fr", md: "320px 1fr" }, alignItems: "start" }}>
             <IdentityPanel
               title="Agent Identity"
@@ -1056,7 +987,7 @@ export function AgentDirectory() {
           </Box>
         ) : null}
 
-        {activeTab === "escrow-publish" ? (
+        {activePage === "escrow-publish" ? (
           <Box sx={{ display: "grid", gap: 2.5, gridTemplateColumns: { xs: "1fr", md: "320px 1fr" }, alignItems: "start" }}>
             <IdentityPanel
               title="Escrow Identity"
@@ -1121,7 +1052,7 @@ export function AgentDirectory() {
           </Box>
         ) : null}
 
-        {activeTab === "profile" ? (
+        {activePage === "profile" ? (
           <Box sx={{ display: "grid", gap: 2.5, gridTemplateColumns: { xs: "1fr", md: "320px 1fr" }, alignItems: "start" }}>
             <NostrProfileCard session={authSession} onProfile={() => undefined} onLogout={logout} expanded />
 
@@ -1162,7 +1093,7 @@ export function AgentDirectory() {
           </Box>
         ) : null}
 
-        {activeTab === "discover" ? (
+        {activePage === "discover" ? (
           <Stack spacing={2}>
             <Paper variant="outlined" sx={{ p: 2 }}>
               <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ alignItems: { xs: "stretch", sm: "center" } }}>
@@ -1208,7 +1139,7 @@ export function AgentDirectory() {
           </Stack>
         ) : null}
 
-        {activeTab === "escrow-discover" ? (
+        {activePage === "escrow-discover" ? (
           <Stack spacing={2}>
             <Paper variant="outlined" sx={{ p: 2 }}>
               <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ alignItems: { xs: "stretch", sm: "center" } }}>
@@ -1250,7 +1181,7 @@ export function AgentDirectory() {
           </Stack>
         ) : null}
 
-        {activeTab === "settings" ? (
+        {activePage === "settings" ? (
           <Card variant="outlined" sx={{ width: "100%" }}>
             <CardContent>
               <Stack spacing={2}>
@@ -1285,7 +1216,189 @@ export function AgentDirectory() {
           </Card>
         ) : null}
         </Stack>
-        <PageFooter relay={relayFooter} />
+    </DashboardShell>
+  );
+}
+
+export function DashboardShell({
+  children,
+  activePage,
+  pageTitle,
+  pagePipLink,
+  pageMeta = null,
+  topBarAction = null,
+  session = null,
+  onLogout,
+  footer = null,
+  selectedCoordinationProfile,
+}: {
+  children: ReactNode;
+  activePage: DirectoryView | "coordinations" | "swaps";
+  pageTitle: string;
+  pagePipLink?: { href: string; label: string };
+  pageMeta?: string | null;
+  topBarAction?: ReactNode;
+  session?: AuthSession | null;
+  onLogout?: () => void;
+  footer?: RelayFooterConfig | null;
+  selectedCoordinationProfile?: string;
+}) {
+  const coordinationProfiles = useCoordinationProfiles();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [restoredSession, setRestoredSession] = useState<AuthSession | null>(
+    null,
+  );
+  useEffect(() => {
+    if (session) return;
+    try {
+      if (sessionStorage.getItem(SIGNED_OUT_STORAGE)) return;
+      const stored = localStorage.getItem(SECRET_KEY_STORAGE);
+      const signerPubkey = sessionStorage.getItem(SIGNER_SESSION_STORAGE);
+      if (stored) {
+        const secretKey = hexToBytes(stored);
+        setRestoredSession({
+          type: "local",
+          pubkey: getPublicKey(secretKey),
+          secretKey,
+        });
+      } else if (signerPubkey && /^[0-9a-f]{64}$/.test(signerPubkey))
+        setRestoredSession({ type: "nip07", pubkey: signerPubkey });
+    } catch {
+      /* Public viewing also works without browser storage. */
+    }
+  }, [session]);
+  const effectiveSession = session || restoredSession;
+  function signOut() {
+    if (onLogout) onLogout();
+    else {
+      sessionStorage.removeItem(SIGNER_SESSION_STORAGE);
+      sessionStorage.setItem(SIGNED_OUT_STORAGE, "true");
+      setRestoredSession(null);
+    }
+  }
+  return (
+    <Box sx={{ minHeight: "100vh" }}>
+      <AppBar
+        position="fixed"
+        color="inherit"
+        elevation={0}
+        sx={{
+          borderBottom: 1,
+          borderColor: "divider",
+          zIndex: (theme) => theme.zIndex.drawer + 1,
+        }}
+      >
+        <Toolbar disableGutters>
+          <IconButton
+            edge="start"
+            aria-label="Open navigation"
+            onClick={() => setMobileNavOpen(true)}
+            sx={{ display: { md: "none" }, mr: 1 }}
+          >
+            <MenuIcon />
+          </IconButton>
+          <Box
+            sx={{
+              alignItems: "center",
+              display: { xs: "none", md: "flex" },
+              gap: 1.25,
+              height: "100%",
+              px: 3,
+              width: DRAWER_WIDTH,
+            }}
+          >
+            <BrandLogo />
+            <Box sx={{ minWidth: 0 }}>
+              <Typography
+                variant="h6"
+                component="div"
+                sx={{ fontWeight: 900, letterSpacing: 0 }}
+              >
+                PONTMORE
+              </Typography>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ display: "block", lineHeight: 1.1 }}
+              >
+                proof of concept
+              </Typography>
+            </Box>
+          </Box>
+          <Divider
+            orientation="vertical"
+            flexItem
+            sx={{ display: { xs: "none", md: "block" } }}
+          />
+          <TopBarPageLabel
+            title={pageTitle}
+            pipLink={pagePipLink}
+            meta={pageMeta}
+            action={topBarAction}
+          />
+        </Toolbar>
+      </AppBar>
+
+      <Drawer
+        variant="permanent"
+        sx={{
+          display: { xs: "none", md: "block" },
+          width: DRAWER_WIDTH,
+          flexShrink: 0,
+          "& .MuiDrawer-paper": {
+            width: DRAWER_WIDTH,
+            boxSizing: "border-box",
+            top: 64,
+            height: "calc(100% - 64px)",
+          },
+        }}
+      >
+        <DashboardNav
+          activePage={activePage}
+          coordinationProfiles={coordinationProfiles}
+          selectedCoordinationProfile={selectedCoordinationProfile}
+          session={effectiveSession}
+          onProfile={() => window.location.assign("/profile")}
+          onLogout={signOut}
+        />
+      </Drawer>
+
+      <Drawer
+        variant="temporary"
+        open={mobileNavOpen}
+        onClose={() => setMobileNavOpen(false)}
+        ModalProps={{ keepMounted: true }}
+        sx={{
+          display: { xs: "block", md: "none" },
+          "& .MuiDrawer-paper": {
+            width: DRAWER_WIDTH,
+            boxSizing: "border-box",
+          },
+        }}
+      >
+        <DashboardNav
+          activePage={activePage}
+          coordinationProfiles={coordinationProfiles}
+          selectedCoordinationProfile={selectedCoordinationProfile}
+          session={effectiveSession}
+          onProfile={() => window.location.assign("/profile")}
+          onLogout={signOut}
+        />
+      </Drawer>
+
+      <Box
+        component="main"
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          minHeight: "100vh",
+          pl: { md: `${DRAWER_WIDTH}px` },
+          pt: 7,
+        }}
+      >
+        {children}
+
+        <PageFooter relay={footer} />
       </Box>
     </Box>
   );
@@ -1423,6 +1536,10 @@ function LandingPage({
             </Button>
           </Stack>
           {message ? <Alert severity={status === "failed" ? "error" : "info"}>{message}</Alert> : null}
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+            <Button href="/coordinations" variant="outlined">Explore public coordinations</Button>
+            <Button href="/coordinations/swaps">View swaps</Button>
+          </Stack>
         </Stack>
       </Box>
       <Box sx={{ alignItems: "center", display: "flex", p: { xs: 3, md: 6 } }}>
@@ -1459,15 +1576,17 @@ function LandingPage({
 }
 
 function DashboardNav({
-  activeTab,
+  activePage,
+  coordinationProfiles,
+  selectedCoordinationProfile,
   session,
-  onSelect,
   onProfile,
   onLogout,
 }: {
-  activeTab: ActiveTab;
-  session: AuthSession;
-  onSelect: (value: ActiveTab) => void;
+  activePage: DirectoryView | "coordinations" | "swaps";
+  coordinationProfiles: string[];
+  selectedCoordinationProfile?: string;
+  session: AuthSession | null;
   onProfile: () => void;
   onLogout: () => void;
 }) {
@@ -1486,19 +1605,29 @@ function DashboardNav({
       </Box>
       <Divider />
       <List component="nav" aria-label="Pontmore POC sections" sx={{ p: 1 }}>
-        {NAV_ITEMS.map((item) => (
+        {DIRECTORY_NAV.filter(item => item.value !== "settings").map((item) => (
           <ListItemButton
-            selected={activeTab === item.value}
-            onClick={() => onSelect(item.value)}
+            selected={activePage === item.value}
+            component="a"
+            href={DASHBOARD_ROUTES[item.value]}
             key={item.value}
-            sx={{ borderRadius: 1 }}
+            sx={{ borderRadius: 1, pl: item.value === "publish" || item.value === "escrow-publish" ? 4 : 2 }}
           >
             <ListItemText primary={item.label} />
           </ListItemButton>
         ))}
+        <ListItemButton selected={activePage === "coordinations" && !selectedCoordinationProfile} href="/coordinations" component="a" sx={{ borderRadius: 1 }}>
+          <ListItemText primary="Coordinations" />
+        </ListItemButton>
+        {coordinationProfiles.map(profile => <ListItemButton key={profile} selected={selectedCoordinationProfile === profile} href={coordinationProfileHref(profile, coordinationProfiles)} component="a" sx={{ borderRadius: 1, pl: 4 }}>
+          <ListItemText primary={profile === SWAP_PROFILE ? "Swaps" : profile} sx={{ overflowWrap: "anywhere", minWidth: 0 }} />
+        </ListItemButton>)}
+        <ListItemButton selected={activePage === "settings"} component="a" href="/settings" sx={{ borderRadius: 1 }}>
+          <ListItemText primary="Settings" />
+        </ListItemButton>
       </List>
       <Box sx={{ mt: "auto", p: 1.5 }}>
-        <NostrProfileCard session={session} onProfile={onProfile} onLogout={onLogout} />
+        {session ? <NostrProfileCard session={session} onProfile={onProfile} onLogout={onLogout} /> : <Button fullWidth href="/" variant="outlined">Log in</Button>}
       </Box>
     </Stack>
   );

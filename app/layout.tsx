@@ -5,7 +5,7 @@ import { MuiThemeProvider } from "./mui-theme-provider";
 
 export const metadata: Metadata = {
   title: "Pontmore POC",
-  description: "Publish and view Pontmore PIP-00 agent definitions on Nostr relays.",
+  description: "Discover Pontmore agents, escrow descriptors, public coordinations and swaps on Nostr relays.",
   icons: {
     icon: "/logo.svg",
     shortcut: "/logo.svg",
