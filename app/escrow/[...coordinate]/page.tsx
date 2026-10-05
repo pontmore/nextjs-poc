@@ -44,7 +44,7 @@ export default async function EscrowPage({ params }: PageProps) {
           </Typography>
           <Typography>No matching PIP-01 escrow descriptor was returned by the configured relays.</Typography>
           <RelayReadSummary results={snapshot.results} />
-          <Button href="/" variant="outlined" sx={{ alignSelf: "flex-start" }}>
+          <Button href="/escrows" variant="outlined" sx={{ alignSelf: "flex-start" }}>
             Back to directory
           </Button>
         </Stack>
@@ -71,10 +71,10 @@ export default async function EscrowPage({ params }: PageProps) {
         <EscrowDefinitionCard escrow={escrow} />
         <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ justifyContent: "space-between" }}>
           <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
-            <Button href="/" variant="outlined">
+            <Button href="/escrows" variant="outlined">
               Back to directory
             </Button>
-            <Button href={`/?tab=escrow-publish&escrow=${encodeURIComponent(resolvedCoordinate)}`} variant="contained">
+            <Button href={`/escrows/publishing?escrow=${encodeURIComponent(resolvedCoordinate)}`} variant="contained">
               Edit in Publishing
             </Button>
           </Stack>

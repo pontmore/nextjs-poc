@@ -8,10 +8,12 @@ export type RelayResult = {
 };
 
 export type NostrFilter = {
+  ids?: string[];
   kinds?: number[];
   authors?: string[];
   "#d"?: string[];
   "#t"?: string[];
+  "#e"?: string[];
   limit?: number;
   since?: number;
 };
@@ -164,8 +166,9 @@ export function isNostrEvent(value: unknown): value is NostrEvent {
 }
 
 export function matchesNostrFilter(event: NostrEvent, filter: NostrFilter): boolean {
-  return (!filter.kinds || filter.kinds.includes(event.kind)) &&
+  return (!filter.ids || filter.ids.includes(event.id)) &&
+    (!filter.kinds || filter.kinds.includes(event.kind)) &&
     (!filter.authors || filter.authors.includes(event.pubkey)) &&
     (filter.since === undefined || event.created_at >= filter.since) &&
-    (["#d", "#t"] as const).every((key) => !filter[key] || event.tags.some((tag) => tag[0] === key.slice(1) && filter[key]!.includes(tag[1])));
+    (["#d", "#t", "#e"] as const).every((key) => !filter[key] || event.tags.some((tag) => tag[0] === key.slice(1) && filter[key]!.includes(tag[1])));
 }
